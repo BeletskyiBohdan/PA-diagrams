@@ -1,0 +1,1443 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Генератор діаграм</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.colors.min.css"
+    />
+    <style>
+      :root {
+        --panel-gap: 1rem;
+      }
+
+      body {
+        font-family: "Montserrat", sans-serif;
+      }
+
+      .page-title {
+        margin-top: 1.5rem;
+        margin-bottom: 0;
+      }
+
+      .layout {
+        align-items: start;
+        gap: var(--panel-gap);
+        padding-bottom: 2rem;
+      }
+
+      .controls-stack {
+        display: grid;
+        gap: var(--panel-gap);
+      }
+
+      .actions-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .actions-row button {
+        margin-bottom: 0;
+      }
+
+      .canvas-panel {
+        position: sticky;
+        top: 1rem;
+      }
+
+      #diagramCanvas {
+        width: 100%;
+        height: auto;
+        display: block;
+        background: #fff;
+        border-radius: 0.75rem;
+      }
+
+      .category-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) minmax(120px, 1fr) 64px auto;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      .category-row button {
+        margin-bottom: 0;
+        white-space: nowrap;
+      }
+
+      dialog::backdrop {
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(2px);
+      }
+
+      dialog[open] {
+        width: min(920px, calc(100vw - 2rem));
+        max-height: calc(100vh - 2rem);
+        border: none;
+        border-radius: 1rem;
+        padding: 0;
+        overflow: hidden;
+        box-shadow: 0 32px 80px rgba(0, 0, 0, 0.22);
+      }
+
+      .modal-shell {
+        background: var(--pico-card-background-color, #fff);
+      }
+
+      .modal-header,
+      .modal-footer {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--pico-muted-border-color);
+      }
+
+      .modal-footer {
+        border-top: 1px solid var(--pico-muted-border-color);
+        border-bottom: none;
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .modal-body {
+        padding: 1.25rem 1.5rem 1.5rem;
+        max-height: calc(100vh - 12rem);
+        overflow: auto;
+      }
+
+      .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .settings-group {
+        border: 1px solid var(--pico-muted-border-color);
+        border-radius: 0.875rem;
+        padding: 1rem;
+        background: var(--pico-background-color);
+      }
+
+      .settings-group h3 {
+        margin-bottom: 0.25rem;
+      }
+
+      .settings-group p {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        color: var(--pico-muted-color);
+        font-size: 0.95rem;
+      }
+
+      .settings-fields {
+        display: grid;
+        gap: 0.9rem;
+      }
+
+      .field-inline {
+        display: grid;
+        gap: 0.35rem;
+      }
+
+      .field-inline small {
+        color: var(--pico-muted-color);
+      }
+
+      .status-text {
+        min-height: 1.25rem;
+        font-size: 0.95rem;
+        color: var(--pico-muted-color);
+      }
+
+      @media (max-width: 1100px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .canvas-panel {
+          position: static;
+        }
+      }
+
+      @media (max-width: 800px) {
+        .settings-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .category-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="container-fluid">
+      <div class="container">
+        <h1 class="page-title">Генератор бубликової діаграми</h1>
+      </div>
+
+      <div class="grid container layout">
+        <div class="controls-stack">
+          <section>
+            <article>
+              <header class="grid">
+                <h2>
+                  Категорії
+                  <sup class="pico-color-grey-500" id="categoriesLimitMessage"
+                    >*до 10 позицій</sup
+                  >
+                </h2>
+              </header>
+              <form>
+                <div id="categories"></div>
+                <button
+                  type="button"
+                  id="addCategoryButton"
+                  onclick="addCategory()"
+                >
+                  Додати категорію
+                </button>
+              </form>
+            </article>
+          </section>
+
+          <section>
+            <article>
+              <header>
+                <h2>Заголовок</h2>
+              </header>
+              <form>
+                <input
+                  type="text"
+                  name="diagramTitle"
+                  id="diagramTitle"
+                  placeholder="Введіть заголовок діаграми"
+                />
+                <label>
+                  <input
+                    type="checkbox"
+                    id="showDiagramTitle"
+                    name="showDiagramTitle"
+                    checked
+                  />
+                  Показувати заголовок діаграми
+                </label>
+              </form>
+            </article>
+          </section>
+
+          <section>
+            <article>
+              <header>
+                <h2>Дії</h2>
+              </header>
+              <div class="actions-row">
+                <button type="button" id="copyDiagramButton">
+                  Скопіювати діаграму
+                </button>
+                <button type="button" class="secondary" id="openSettingsButton">
+                  Налаштування зовнішнього вигляду
+                </button>
+              </div>
+              <p id="copyStatus" class="status-text" aria-live="polite"></p>
+            </article>
+          </section>
+        </div>
+
+        <section class="canvas-panel">
+          <article>
+            <canvas id="diagramCanvas"></canvas>
+          </article>
+        </section>
+      </div>
+    </main>
+
+    <dialog id="appearanceDialog" aria-labelledby="appearanceDialogTitle">
+      <div class="modal-shell">
+        <div class="modal-header">
+          <h2 id="appearanceDialogTitle">Налаштування зовнішнього вигляду діаграми</h2>
+          <p style="margin: 0.35rem 0 0; color: var(--pico-muted-color)">
+            Змінюйте геометрію, відступи, типографіку та кольори підписів. Усі зміни застосовуються одразу.
+          </p>
+        </div>
+
+        <div class="modal-body">
+          <div class="settings-grid" id="appearanceSettingsGrid"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="secondary" id="resetAppearanceButton">
+            Скинути до стандартних
+          </button>
+          <button type="button" id="closeSettingsButton">Готово</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script>
+      const DEFAULT_DIAGRAM_STYLE = {
+        title: {
+          positionY: 40,
+          fontSize: 36,
+        },
+        diagram: {
+          titlessTopY: 60,
+          labelGap: 20,
+          withTitleTopY: 200,
+          labelDistanceToCircle: 15,
+          bottomY: 160,
+          topBorderOffset: 15,
+          smallRadiusRatio: 0.5,
+          valueFontSize: 42,
+          valueDarkColor: "#000000",
+          labelFontSize: 30,
+          valueLightColor: "#ffffff",
+          labelPaddingTop: 20,
+          labelPaddingBottom: 10,
+          labelPaddingLeft: 10,
+          labelPaddingRight: 10,
+        },
+      };
+
+      const DIAGRAM_STYLE = structuredClone(DEFAULT_DIAGRAM_STYLE);
+
+      const APPEARANCE_FIELDS = [
+        {
+          group: "Позиціонування діаграми",
+          description: "Налаштування вертикального розміщення діаграми та зовнішніх підписів.",
+          fields: [
+            {
+              key: "diagram.titlessTopY",
+              label: "Верхній відступ без заголовка",
+              help: "Відстань від верхнього краю полотна до діаграми, якщо заголовок вимкнено.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+            {
+              key: "diagram.withTitleTopY",
+              label: "Верхній відступ із заголовком",
+              help: "Відстань від верхнього краю полотна до діаграми, якщо заголовок показується.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+            {
+              key: "diagram.bottomY",
+              label: "Нижній відступ",
+              help: "Відступ від нижнього краю полотна до діаграми.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+            {
+              key: "diagram.labelDistanceToCircle",
+              label: "Відстань підписів до кола",
+              help: "Мінімальна відстань між зовнішніми підписами та діаграмою.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+          ],
+        },
+        {
+          group: "Геометрія бублика",
+          description: "Контролює товщину кільця та розміщення внутрішніх значень.",
+          fields: [
+            {
+              key: "diagram.smallRadiusRatio",
+              label: "Співвідношення внутрішнього радіуса",
+              help: "Частка внутрішнього радіуса від зовнішнього. Наприклад, 0.5 = 50%.",
+              type: "number",
+              min: 0.1,
+              max: 0.9,
+              step: 0.01,
+            },
+            {
+              key: "diagram.valueFontSize",
+              label: "Розмір шрифту відсотків",
+              help: "Розмір внутрішніх відсоткових значень у секторах.",
+              type: "number",
+              min: 8,
+              step: 1,
+            },
+          ],
+        },
+        {
+          group: "Зовнішні підписи",
+          description: "Впливає на відстані між рядками та внутрішні відступи блоку підпису.",
+          fields: [
+            {
+              key: "diagram.labelGap",
+              label: "Проміжок між рядками підпису",
+              help: "Відстань між назвою категорії та її значенням.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+            {
+              key: "diagram.labelFontSize",
+              label: "Розмір шрифту підписів",
+              help: "Розмір тексту для назви та значення категорії поза діаграмою.",
+              type: "number",
+              min: 8,
+              step: 1,
+            },
+            {
+              key: "diagram.topBorderOffset",
+              label: "Зсув верхньої лінії виноски",
+              help: "Внутрішній відступ для верхнього ребра виноски.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+          ],
+        },
+        {
+          group: "Внутрішні відступи підписів",
+          description: "Налаштування внутрішніх полів навколо тексту зовнішніх підписів.",
+          fields: [
+            {
+              key: "diagram.labelPaddingTop",
+              label: "Верхній внутрішній відступ",
+              help: "Відступ над текстом підпису.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+            {
+              key: "diagram.labelPaddingBottom",
+              label: "Нижній внутрішній відступ",
+              help: "Відступ під текстом підпису.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+            {
+              key: "diagram.labelPaddingLeft",
+              label: "Лівий внутрішній відступ",
+              help: "Відступ ліворуч від тексту підпису.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+            {
+              key: "diagram.labelPaddingRight",
+              label: "Правий внутрішній відступ",
+              help: "Відступ праворуч від тексту підпису.",
+              type: "number",
+              min: 0,
+              step: 1,
+            },
+          ],
+        },
+        {
+          group: "Кольори внутрішніх значень",
+          description: "Колір відсотка автоматично обирається залежно від яскравості сектора.",
+          fields: [
+            {
+              key: "diagram.valueDarkColor",
+              label: "Темний колір відсотків",
+              help: "Використовується на світлих секторах.",
+              type: "color",
+            },
+            {
+              key: "diagram.valueLightColor",
+              label: "Світлий колір відсотків",
+              help: "Використовується на темних секторах.",
+              type: "color",
+            },
+          ],
+        },
+      ];
+
+      const PREDEFINED_COLORS = [
+        "#ee7e2c",
+        "#ff4f01",
+        "#c55e0f",
+        "#ffc000",
+        "#ffff00",
+        "#657084",
+        "#8f4a11",
+        "#d4891c",
+        "#4f637d",
+        "#b44d00",
+      ];
+
+      const categories = [
+        { name: "Категорія 1", value: 10000, color: PREDEFINED_COLORS[0] },
+        { name: "Категорія 2", value: 10000, color: PREDEFINED_COLORS[1] },
+        { name: "Категорія 3", value: 10000, color: PREDEFINED_COLORS[2] },
+      ];
+
+      const categoriesSubscriptions = [];
+
+      function renderCategories() {
+        for (const unsubscribe of categoriesSubscriptions) {
+          unsubscribe();
+        }
+        categoriesSubscriptions.length = 0;
+
+        const container = document.getElementById("categories");
+        const categoriesElements = categories.map((category, index) =>
+          renderCategory(category, index, categoriesSubscriptions),
+        );
+        container.replaceChildren(...categoriesElements);
+      }
+
+      function renderCategory(category, index, subscriptions) {
+        const div = document.createElement("div");
+        div.classList.add("category-row");
+        div.innerHTML = `
+          <input type="text" value="${escapeHtml(category.name)}" placeholder="Назва категорії" aria-label="Назва категорії ${index + 1}">
+          <input type="number" min="0" value="${category.value}" placeholder="Значення категорії" aria-label="Значення категорії ${index + 1}">
+          <input type="color" value="${category.color}" aria-label="Колір категорії ${index + 1}">
+          <button type="button" class="secondary">Видалити</button>
+        `;
+
+        const [nameInput, valueInput, colorInput] = div.querySelectorAll("input");
+
+        subscriptions.push(
+          subscribeToInputValue(nameInput, (newName) => {
+            category.name = newName;
+            onCategoriesUpdate();
+          }),
+          subscribeToInputValue(valueInput, (newValue) => {
+            category.value = Number.isFinite(newValue) ? Math.max(0, newValue) : 0;
+            onCategoriesUpdate();
+          }),
+          subscribeToInputValue(colorInput, (newColor) => {
+            category.color = newColor;
+            onCategoriesUpdate();
+          }),
+          addOnClick(div.querySelector("button"), () => {
+            const newCategories = categories.filter((_, i) => i !== index);
+            setCategories(newCategories);
+          }),
+        );
+
+        return div;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function addOnClick(btn, callback) {
+        btn.addEventListener("click", callback);
+        return () => {
+          btn.removeEventListener("click", callback);
+        };
+      }
+
+      function subscribeToInputValue(input, callback) {
+        function onInput(event) {
+          if (event.target.type === "number") {
+            callback(event.target.valueAsNumber);
+          } else {
+            callback(event.target.value);
+          }
+        }
+        input.addEventListener("input", onInput);
+        return () => {
+          input.removeEventListener("input", onInput);
+        };
+      }
+
+      function randomColor() {
+        return `#${Math.floor(Math.random() * (0xffffff + 1))
+          .toString(16)
+          .padStart(6, "0")}`;
+      }
+
+      function pickColor() {
+        const takenColors = new Set(categories.map((c) => c.color));
+        for (const color of PREDEFINED_COLORS) {
+          if (!takenColors.has(color)) {
+            return color;
+          }
+        }
+        return randomColor();
+      }
+
+      function getCategoriesLimit() {
+        return 10;
+      }
+
+      function addCategory() {
+        if (categories.length >= getCategoriesLimit()) {
+          alert(`Досягнуто ліміту категорій: не більше ${getCategoriesLimit()}`);
+          return;
+        }
+
+        const randomCategoryName = `Категорія ${categories.length + 1}`;
+        const randomCategoryValue = Math.floor(Math.random() * 100000);
+        const randomCategoryColor = pickColor();
+
+        setCategories([
+          ...categories,
+          {
+            name: randomCategoryName,
+            value: randomCategoryValue,
+            color: randomCategoryColor,
+          },
+        ]);
+        renderLimitCategoryMessage();
+        renderAddCategoryButton();
+      }
+
+      function setCategories(newCategories) {
+        categories.length = 0;
+        categories.push(...newCategories);
+        renderCategories();
+        onCategoriesUpdate();
+        renderAddCategoryButton();
+      }
+
+      function ignoreFormSubmissions() {
+        const forms = [...document.querySelectorAll("form")];
+        function ignore(event) {
+          event.preventDefault();
+        }
+        for (const form of forms) {
+          form.addEventListener("submit", ignore);
+        }
+        return () => {
+          for (const form of forms) {
+            form.removeEventListener("submit", ignore);
+          }
+        };
+      }
+
+      function getTitle() {
+        return document.getElementById("diagramTitle").value;
+      }
+
+      function setTitle(newTitle) {
+        document.getElementById("diagramTitle").value = newTitle;
+      }
+
+      function getShouldShowTitle() {
+        return document.getElementById("showDiagramTitle").checked;
+      }
+
+      function setShouldShowTitle(value) {
+        document.getElementById("showDiagramTitle").checked = Boolean(value);
+      }
+
+      function drawDiagram() {
+        const canvas = document.getElementById("diagramCanvas");
+        canvas.width = 1920;
+        canvas.height = 1080;
+        canvas.style.maxWidth = "100%";
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const layout = getDiagramLayout(canvas, ctx, categories);
+        for (const item of layout) {
+          if (item.type === "text") {
+            ctx.save();
+            ctx.font = item.font ?? getLabelFont();
+            ctx.fillStyle = item.color ?? "#000";
+            ctx.textAlign = item.textAlign ?? "left";
+            ctx.textBaseline = item.textBaseline ?? "top";
+            ctx.textRendering = "geometricPrecision";
+            ctx.fillText(item.text, item.position.x, item.position.y);
+            ctx.restore();
+            continue;
+          }
+
+          if (item.type === "path") {
+            ctx.save();
+            ctx.lineJoin = item.lineJoin ?? "round";
+            if (item.fill) {
+              ctx.fillStyle = item.fill;
+              ctx.fill(item.path);
+            }
+            if (item.stroke) {
+              ctx.strokeStyle = item.stroke;
+              ctx.lineWidth = item.lineWidth;
+              ctx.stroke(item.path);
+            }
+            ctx.restore();
+            continue;
+          }
+
+          throw new Error(`Unknown layout item type: ${item.type}`);
+        }
+      }
+
+      function getDiagramLayout(canvas, ctx, categories) {
+        const layout = [];
+
+        if (getShouldShowTitle()) {
+          layout.push({
+            type: "text",
+            text: getTitle(),
+            textAlign: "center",
+            textBaseline: "top",
+            font: `bold ${DIAGRAM_STYLE.title.fontSize}px Montserrat, sans-serif`,
+            color: "#000",
+            position: { x: canvas.width / 2, y: DIAGRAM_STYLE.title.positionY },
+          });
+        }
+
+        const donutItems = getDonutItems(categories);
+        addDonutDiagram(donutItems, layout, canvas, ctx);
+
+        return layout;
+      }
+
+      function addDonutDiagram(donutItems, layout, canvas, ctx) {
+        const { centerX, centerY, largeRadius, smallRadius } = getCircleLayout(
+          getShouldShowTitle(),
+          canvas,
+        );
+
+        for (const item of donutItems) {
+          const shape = getCategoryShape(
+            centerX,
+            centerY,
+            largeRadius,
+            smallRadius,
+            item.startAngle,
+            item.endAngle,
+          );
+
+          layout.push({
+            type: "path",
+            path: shape.path,
+            fill: item.color,
+            stroke: "#fff",
+            lineWidth: 4,
+          });
+        }
+
+        const labels = getDonutLabelsMeasurements(
+          donutItems,
+          centerX,
+          centerY,
+          largeRadius,
+          ctx,
+        );
+
+        addDiagramLabels(centerX, centerY, smallRadius, largeRadius, labels, layout);
+      }
+
+      function getPercentageFont(ratio) {
+        const fontSize =
+          ratio > 0.1
+            ? DIAGRAM_STYLE.diagram.valueFontSize
+            : DIAGRAM_STYLE.diagram.valueFontSize * 0.5;
+        return `bold ${fontSize}px Montserrat, sans-serif`;
+      }
+
+      function getDonutLabelsMeasurements(donutItems, centerX, centerY, largeRadius, ctx) {
+        return donutItems.map((item) => {
+          ctx.save();
+          ctx.font = getLabelFont();
+          const labelMeasurement = ctx.measureText(item.labelNameText);
+          ctx.font = getLabelValueFont();
+          const valueMeasurement = ctx.measureText(item.labelValueText);
+          const ratio = (item.endAngle - item.startAngle) / (2 * Math.PI);
+          ctx.font = getPercentageFont(ratio);
+          const innerValueMeasurement = ctx.measureText(item.valuePercentageText);
+          const centerAngle = item.startAngle + (item.endAngle - item.startAngle) / 2;
+          ctx.restore();
+
+          return {
+            labelNameText: item.labelNameText,
+            labelValueText: item.labelValueText,
+            valuePercentageText: item.valuePercentageText,
+            color: item.color,
+            valueMeasurement,
+            innerValueMeasurement,
+            startAngle: item.startAngle,
+            endAngle: item.endAngle,
+            labelMeasurement,
+            targetX: centerX + Math.cos(centerAngle) * (largeRadius * 0.99),
+            targetY: centerY + Math.sin(centerAngle) * (largeRadius * 0.99),
+          };
+        });
+      }
+
+      function getClosestPointOnRectangle(x, y, w, h, px, py) {
+        const edges = [
+          { x1: x, y1: y, x2: x + w, y2: y },
+          { x1: x + w, y1: y, x2: x + w, y2: y + h },
+          { x1: x + w, y1: y + h, x2: x, y2: y + h },
+          { x1: x, y1: y + h, x2: x, y2: y },
+        ];
+
+        let minimalDistance = Infinity;
+        let closestPoint = null;
+
+        for (const edge of edges) {
+          const closest = getClosestPointOnInterval(
+            edge.x1,
+            edge.y1,
+            edge.x2,
+            edge.y2,
+            px,
+            py,
+          );
+          const distance = Math.hypot(closest.x - px, closest.y - py);
+          if (distance < minimalDistance) {
+            minimalDistance = distance;
+            closestPoint = closest;
+          }
+        }
+
+        return {
+          point: closestPoint,
+          distance: minimalDistance,
+        };
+      }
+
+      function getRectRadial(cx, cy, angle, r, w, h) {
+        const rectCenterX = cx + Math.cos(angle) * r;
+        const rectCenterY = cy + Math.sin(angle) * r;
+        return new DOMRect(rectCenterX - w / 2, rectCenterY - h / 2, w, h);
+      }
+
+      function getActualRect(width, height, angle, centerX, centerY, largeRadius, radius) {
+        let r = radius;
+        for (let i = 0; i < 10; i++) {
+          const init = getRectRadial(centerX, centerY, angle, r, width, height);
+          const distance =
+            getClosestPointOnRectangle(
+              init.left,
+              init.top,
+              init.width,
+              init.height,
+              centerX,
+              centerY,
+            ).distance - largeRadius;
+
+          if (distance < DIAGRAM_STYLE.diagram.labelDistanceToCircle) {
+            r += DIAGRAM_STYLE.diagram.labelDistanceToCircle - distance;
+          } else if (distance > DIAGRAM_STYLE.diagram.labelDistanceToCircle) {
+            r -= distance - DIAGRAM_STYLE.diagram.labelDistanceToCircle;
+          } else {
+            break;
+          }
+        }
+
+        return getRectRadial(centerX, centerY, angle, r, width, height);
+      }
+
+      function addDiagramLabels(centerX, centerY, smallRadius, largeRadius, labels, layout) {
+        const placed = [];
+        const labelRadius = largeRadius + DIAGRAM_STYLE.diagram.labelDistanceToCircle;
+
+        for (const label of labels) {
+          const leftPX = centerX + Math.cos(label.startAngle) * labelRadius;
+          const leftPY = centerY + Math.sin(label.startAngle) * labelRadius;
+          const rightPX = centerX + Math.cos(label.endAngle) * labelRadius;
+          const rightPY = centerY + Math.sin(label.endAngle) * labelRadius;
+          const availableWidth = Math.hypot(rightPX - leftPX, rightPY - leftPY);
+          if (label.innerValueMeasurement.width >= availableWidth) {
+            continue;
+          }
+
+          const shape = getCategoryShape(
+            centerX,
+            centerY,
+            largeRadius,
+            smallRadius,
+            label.startAngle,
+            label.endAngle,
+          );
+          const ratio = (label.endAngle - label.startAngle) / (2 * Math.PI);
+          layout.push({
+            type: "text",
+            text: label.valuePercentageText,
+            position: { x: shape.centerX, y: shape.centerY },
+            font: getPercentageFont(ratio),
+            color:
+              getBrightness(label.color) > 155
+                ? DIAGRAM_STYLE.diagram.valueDarkColor
+                : DIAGRAM_STYLE.diagram.valueLightColor,
+            textAlign: "center",
+            textBaseline: "middle",
+          });
+        }
+
+        for (const label of labels) {
+          const centerAngle = (label.startAngle + label.endAngle) * 0.5;
+          placed.push({
+            label,
+            angle: centerAngle,
+            width:
+              Math.max(label.labelMeasurement.width, label.valueMeasurement.width) +
+              DIAGRAM_STYLE.diagram.labelPaddingLeft +
+              DIAGRAM_STYLE.diagram.labelPaddingRight,
+            height:
+              DIAGRAM_STYLE.diagram.labelPaddingTop +
+              label.labelMeasurement.actualBoundingBoxAscent +
+              label.labelMeasurement.actualBoundingBoxDescent +
+              label.valueMeasurement.actualBoundingBoxAscent +
+              label.valueMeasurement.actualBoundingBoxDescent +
+              DIAGRAM_STYLE.diagram.labelGap +
+              DIAGRAM_STYLE.diagram.labelPaddingBottom,
+          });
+        }
+
+        const steps = getIntersectionsRetries();
+        for (let k = 0; k < steps; k++) {
+          let hasIntersection = false;
+          for (let i = placed.length - 1; i >= 2; i--) {
+            const a = placed[i];
+            const b = placed[i - 1];
+            const c = placed[i - 2];
+            const rect1 = getActualRect(
+              a.width,
+              a.height,
+              a.angle,
+              centerX,
+              centerY,
+              largeRadius,
+              labelRadius,
+            );
+            const rect2 = getActualRect(
+              b.width,
+              b.height,
+              b.angle,
+              centerX,
+              centerY,
+              largeRadius,
+              labelRadius,
+            );
+            if (rectIntersects(rect1, rect2)) {
+              hasIntersection = true;
+              b.angle += (c.angle - b.angle) * 0.05;
+            }
+          }
+          if (!hasIntersection) {
+            break;
+          }
+        }
+
+        for (const p of placed) {
+          const actualRect = getActualRect(
+            p.width,
+            p.height,
+            p.angle,
+            centerX,
+            centerY,
+            largeRadius,
+            labelRadius,
+          );
+
+          if (p.angle > Math.PI / 4 && p.angle < (3 * Math.PI) / 4) {
+            const closestPoint = getClosestPointOnInterval(
+              actualRect.left,
+              actualRect.top + DIAGRAM_STYLE.diagram.topBorderOffset,
+              actualRect.right,
+              actualRect.top + DIAGRAM_STYLE.diagram.topBorderOffset,
+              p.label.targetX,
+              p.label.targetY,
+              false,
+            );
+
+            const path =
+              closestPoint.t < 0.5
+                ? [
+                    [actualRect.right, actualRect.top],
+                    [actualRect.left, actualRect.top],
+                    [p.label.targetX, p.label.targetY],
+                  ]
+                : [
+                    [actualRect.left, actualRect.top],
+                    [actualRect.right, actualRect.top],
+                    [p.label.targetX, p.label.targetY],
+                  ];
+
+            layout.push({
+              type: "path",
+              stroke: p.label.color,
+              lineWidth: 4,
+              lineJoin: "round",
+              path: new Path2D(
+                `M ${path[0].join(",")}L ${path[1].join(",")}L ${path[2].join(",")}`,
+              ),
+            });
+          } else {
+            const closestPoint = getClosestPointOnInterval(
+              actualRect.left,
+              actualRect.bottom,
+              actualRect.right,
+              actualRect.bottom,
+              p.label.targetX,
+              p.label.targetY,
+              false,
+            );
+
+            const path =
+              closestPoint.t < 0.5
+                ? [
+                    [actualRect.right, actualRect.bottom],
+                    [actualRect.left, actualRect.bottom],
+                    [p.label.targetX, p.label.targetY],
+                  ]
+                : [
+                    [actualRect.left, actualRect.bottom],
+                    [actualRect.right, actualRect.bottom],
+                    [p.label.targetX, p.label.targetY],
+                  ];
+
+            layout.push({
+              type: "path",
+              stroke: p.label.color,
+              lineWidth: 4,
+              lineJoin: "round",
+              path: new Path2D(
+                `M ${path[0].join(",")}L ${path[1].join(",")}L ${path[2].join(",")}`,
+              ),
+            });
+          }
+
+          layout.push(
+            {
+              type: "text",
+              position: {
+                x: actualRect.left + DIAGRAM_STYLE.diagram.labelPaddingLeft,
+                y:
+                  DIAGRAM_STYLE.diagram.labelPaddingTop +
+                  actualRect.top +
+                  DIAGRAM_STYLE.diagram.labelPaddingBottom,
+              },
+              text: p.label.labelNameText,
+              font: getLabelFont(),
+            },
+            {
+              type: "text",
+              position: {
+                x: actualRect.left + DIAGRAM_STYLE.diagram.labelPaddingLeft,
+                y:
+                  DIAGRAM_STYLE.diagram.labelPaddingTop +
+                  actualRect.top +
+                  p.label.labelMeasurement.actualBoundingBoxDescent +
+                  p.label.labelMeasurement.actualBoundingBoxAscent +
+                  DIAGRAM_STYLE.diagram.labelGap,
+              },
+              font: getLabelValueFont(),
+              text: p.label.labelValueText,
+              textAlign: "left",
+              textBaseline: "top",
+            },
+          );
+        }
+      }
+
+      function getLabelValueFont() {
+        return `normal ${DIAGRAM_STYLE.diagram.labelFontSize}px Montserrat, sans-serif`;
+      }
+
+      function getLabelFont() {
+        return `bold ${DIAGRAM_STYLE.diagram.labelFontSize}px Montserrat, sans-serif`;
+      }
+
+      function getClosestPointOnInterval(x1, y1, x2, y2, px, py, allowMiddle = true) {
+        const lengthSquared = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+        if (lengthSquared === 0) return { x: x1, y: y1, t: 0 };
+
+        if (!allowMiddle) {
+          const d1 = Math.hypot(px - x1, py - y1);
+          const d2 = Math.hypot(px - x2, py - y2);
+          return d1 < d2 ? { x: x1, y: y1, t: 0 } : { x: x2, y: y2, t: 1 };
+        }
+
+        const t =
+          ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / lengthSquared;
+        const clampedT = Math.max(0, Math.min(1, t));
+
+        return {
+          x: x1 + clampedT * (x2 - x1),
+          y: y1 + clampedT * (y2 - y1),
+          t: clampedT,
+        };
+      }
+
+      function getIntersectionsRetries() {
+        const url = new URL(window.location);
+        const stepsParam = url.searchParams.get("steps");
+        if (stepsParam) {
+          const steps = parseInt(stepsParam, 10);
+          if (Number.isFinite(steps) && steps > 0) {
+            return steps;
+          }
+        }
+        return 100;
+      }
+
+      function rectIntersects(r1, r2) {
+        return !(
+          r2.left > r1.right ||
+          r2.right < r1.left ||
+          r2.top > r1.bottom ||
+          r2.bottom < r1.top
+        );
+      }
+
+      const numberFormat = new Intl.NumberFormat("uk-UA", {
+        currency: "UAH",
+        style: "currency",
+        maximumFractionDigits: 0,
+      });
+
+      function formatValue(value) {
+        return numberFormat.format(value);
+      }
+
+      function getDonutItems(categories) {
+        const totalValue = sum(categories, (c) => c.value);
+        let previousValues = 0;
+        let previousAngle = -Math.PI / 2;
+        const res = [];
+        const sortedCategories = [...categories].sort((a, b) => b.value - a.value);
+
+        for (const category of sortedCategories) {
+          const safeValue = Number.isFinite(category.value) ? category.value : 0;
+          const endAngle =
+            totalValue > 0
+              ? ((previousValues + safeValue) / totalValue) * 2 * Math.PI - Math.PI / 2
+              : previousAngle;
+          const startAngle = previousAngle;
+          previousAngle = endAngle;
+          previousValues += safeValue;
+
+          res.push({
+            labelNameText: category.name,
+            labelValueText: formatValue(safeValue),
+            valuePercentageText: totalValue ? formatPercentage(safeValue / totalValue) : "0.0%",
+            color: category.color,
+            startAngle,
+            endAngle,
+          });
+        }
+        return res;
+      }
+
+      function getCircleLayout(withTitle, canvas) {
+        const centerX = canvas.width / 2;
+        const topY = withTitle
+          ? DIAGRAM_STYLE.diagram.withTitleTopY
+          : DIAGRAM_STYLE.diagram.titlessTopY;
+
+        const largeRadius = (canvas.height - topY - DIAGRAM_STYLE.diagram.bottomY) / 2;
+        const centerY = canvas.height - DIAGRAM_STYLE.diagram.bottomY - largeRadius;
+        const smallRadius = Math.round(DIAGRAM_STYLE.diagram.smallRadiusRatio * largeRadius);
+
+        return { centerX, centerY, largeRadius, smallRadius };
+      }
+
+      function getBrightness(color) {
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000;
+      }
+
+      function formatPercentage(value) {
+        return `${(Math.round(value * 1000) / 10).toFixed(1)}%`;
+      }
+
+      function getCategoryShape(centerX, centerY, largeRadius, smallRadius, startAngle, endAngle) {
+        const shape = new Path2D();
+        shape.arc(centerX, centerY, largeRadius, startAngle, endAngle);
+        shape.arc(centerX, centerY, smallRadius, endAngle, startAngle, true);
+        shape.closePath();
+
+        const shapeCenterAngle = startAngle + (endAngle - startAngle) / 2;
+        const shapeCenterX =
+          centerX + (Math.cos(shapeCenterAngle) * (largeRadius + smallRadius)) / 2;
+        const shapeCenterY =
+          centerY + (Math.sin(shapeCenterAngle) * (largeRadius + smallRadius)) / 2;
+
+        return {
+          path: shape,
+          centerX: shapeCenterX,
+          centerY: shapeCenterY,
+        };
+      }
+
+      function sum(xs, f) {
+        let s = 0;
+        for (const x of xs) {
+          const value = Number(f(x));
+          s += Number.isFinite(value) ? value : 0;
+        }
+        return s;
+      }
+
+      function renderLimitCategoryMessage() {
+        const messageElement = document.getElementById("categoriesLimitMessage");
+        if (categories.length >= getCategoriesLimit()) {
+          messageElement.textContent = `*до ${getCategoriesLimit()} позицій (досягнуто ліміт)`;
+        } else {
+          messageElement.textContent = `*до ${getCategoriesLimit()} позицій`;
+        }
+      }
+
+      function renderAddCategoryButton() {
+        const button = document.querySelector("#addCategoryButton");
+        button.disabled = categories.length >= getCategoriesLimit();
+      }
+
+      function onCategoriesUpdate() {
+        drawDiagram();
+        saveStateToUrl();
+      }
+
+      function saveStateToUrl() {
+        const url = new URL(window.location);
+        url.searchParams.set("data", JSON.stringify(categories));
+        url.searchParams.set("title", getTitle());
+        url.searchParams.set("showTitle", String(getShouldShowTitle()));
+        url.searchParams.set("style", JSON.stringify(DIAGRAM_STYLE));
+        window.history.replaceState(null, "", url.toString());
+      }
+
+      function mergeDeep(target, source) {
+        for (const key of Object.keys(source)) {
+          if (
+            source[key] &&
+            typeof source[key] === "object" &&
+            !Array.isArray(source[key]) &&
+            target[key] &&
+            typeof target[key] === "object"
+          ) {
+            mergeDeep(target[key], source[key]);
+          } else {
+            target[key] = source[key];
+          }
+        }
+        return target;
+      }
+
+      function readStateFromUrl() {
+        const url = new URL(window.location);
+
+        const rawData = url.searchParams.get("data");
+        if (rawData) {
+          try {
+            const data = JSON.parse(rawData);
+            if (Array.isArray(data)) {
+              categories.length = 0;
+              categories.push(...data);
+            }
+          } catch (e) {
+            console.error("Не вдалося прочитати категорії з URL", e);
+          }
+        }
+
+        const title = url.searchParams.get("title");
+        if (title !== null) {
+          setTitle(title);
+        }
+
+        const showTitle = url.searchParams.get("showTitle");
+        if (showTitle !== null) {
+          setShouldShowTitle(showTitle === "true");
+        }
+
+        const rawStyle = url.searchParams.get("style");
+        if (rawStyle) {
+          try {
+            const parsedStyle = JSON.parse(rawStyle);
+            mergeDeep(DIAGRAM_STYLE, parsedStyle);
+          } catch (e) {
+            console.error("Не вдалося прочитати стилі з URL", e);
+          }
+        }
+      }
+
+      function getValueByPath(obj, path) {
+        return path.split(".").reduce((acc, key) => acc[key], obj);
+      }
+
+      function setValueByPath(obj, path, value) {
+        const keys = path.split(".");
+        const lastKey = keys.pop();
+        const parent = keys.reduce((acc, key) => acc[key], obj);
+        parent[lastKey] = value;
+      }
+
+      function buildAppearanceDialog() {
+        const grid = document.getElementById("appearanceSettingsGrid");
+        const groups = APPEARANCE_FIELDS.map((group) => {
+          const article = document.createElement("section");
+          article.className = "settings-group";
+
+          const title = document.createElement("h3");
+          title.textContent = group.group;
+
+          const description = document.createElement("p");
+          description.textContent = group.description;
+
+          const fieldsWrap = document.createElement("div");
+          fieldsWrap.className = "settings-fields";
+
+          for (const field of group.fields) {
+            const wrapper = document.createElement("label");
+            wrapper.className = "field-inline";
+
+            const span = document.createElement("span");
+            span.textContent = field.label;
+
+            const input = document.createElement("input");
+            input.type = field.type;
+            input.dataset.path = field.key;
+            input.setAttribute("aria-label", field.label);
+
+            if (field.type === "number") {
+              if (field.min !== undefined) input.min = String(field.min);
+              if (field.max !== undefined) input.max = String(field.max);
+              if (field.step !== undefined) input.step = String(field.step);
+              input.value = String(getValueByPath(DIAGRAM_STYLE, field.key));
+            } else if (field.type === "color") {
+              input.value = String(getValueByPath(DIAGRAM_STYLE, field.key));
+            }
+
+            input.addEventListener("input", () => {
+              const nextValue =
+                field.type === "number"
+                  ? Number.isFinite(input.valueAsNumber)
+                    ? input.valueAsNumber
+                    : 0
+                  : input.value;
+              setValueByPath(DIAGRAM_STYLE, field.key, nextValue);
+              onCategoriesUpdate();
+            });
+
+            const help = document.createElement("small");
+            help.textContent = field.help;
+
+            wrapper.append(span, input, help);
+            fieldsWrap.append(wrapper);
+          }
+
+          article.append(title, description, fieldsWrap);
+          return article;
+        });
+
+        grid.replaceChildren(...groups);
+      }
+
+      function syncAppearanceInputs() {
+        const inputs = document.querySelectorAll("#appearanceSettingsGrid [data-path]");
+        for (const input of inputs) {
+          input.value = String(getValueByPath(DIAGRAM_STYLE, input.dataset.path));
+        }
+      }
+
+      function resetAppearanceSettings() {
+        DIAGRAM_STYLE.title = structuredClone(DEFAULT_DIAGRAM_STYLE.title);
+        DIAGRAM_STYLE.diagram = structuredClone(DEFAULT_DIAGRAM_STYLE.diagram);
+        syncAppearanceInputs();
+        onCategoriesUpdate();
+      }
+
+      async function copyDiagramToClipboard() {
+        const status = document.getElementById("copyStatus");
+        const canvas = document.getElementById("diagramCanvas");
+
+        try {
+          if (!window.ClipboardItem || !navigator.clipboard?.write) {
+            throw new Error("Буфер обміну зображень не підтримується у цьому браузері.");
+          }
+
+          const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob((result) => {
+              if (result) {
+                resolve(result);
+              } else {
+                reject(new Error("Не вдалося сформувати зображення діаграми."));
+              }
+            }, "image/png");
+          });
+
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "image/png": blob,
+            }),
+          ]);
+
+          status.textContent = "Діаграму скопійовано в буфер обміну.";
+        } catch (error) {
+          console.error(error);
+          status.textContent =
+            "Не вдалося скопіювати діаграму. Переконайтеся, що сторінка відкрита через HTTPS і браузер підтримує копіювання зображень.";
+        }
+      }
+
+      window.addEventListener("resize", drawDiagram);
+
+      const titleInput = document.getElementById("diagramTitle");
+      titleInput.addEventListener("input", () => {
+        drawDiagram();
+        saveStateToUrl();
+      });
+
+      const showTitleCheckbox = document.getElementById("showDiagramTitle");
+      showTitleCheckbox.addEventListener("change", () => {
+        drawDiagram();
+        saveStateToUrl();
+      });
+
+      document
+        .getElementById("copyDiagramButton")
+        .addEventListener("click", copyDiagramToClipboard);
+
+      const appearanceDialog = document.getElementById("appearanceDialog");
+      document.getElementById("openSettingsButton").addEventListener("click", () => {
+        appearanceDialog.showModal();
+      });
+      document.getElementById("closeSettingsButton").addEventListener("click", () => {
+        appearanceDialog.close();
+      });
+      document
+        .getElementById("resetAppearanceButton")
+        .addEventListener("click", resetAppearanceSettings);
+
+      readStateFromUrl();
+      buildAppearanceDialog();
+      syncAppearanceInputs();
+      renderLimitCategoryMessage();
+      renderAddCategoryButton();
+      renderCategories();
+      ignoreFormSubmissions();
+
+      if (!getTitle()) {
+        setTitle("Приклад діаграми");
+      }
+
+      drawDiagram();
+      saveStateToUrl();
+    </script>
+  </body>
+</html>
