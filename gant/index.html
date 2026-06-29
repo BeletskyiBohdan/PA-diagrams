@@ -1,1 +1,1722 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>Генератор діаграми Ганта</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --ui-bg: #f4f5f7;
+      --panel: #ffffff;
+      --ink: #17191f;
+      --muted: #737985;
+      --line: #e4e7ec;
+      --accent: #f4511e;
+      --accent-dark: #d83d0d;
+      --radius: 18px;
+      --shadow: 0 16px 45px rgba(24, 30, 45, .10);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Montserrat", Arial, sans-serif;
+      color: var(--ink);
+      background: var(--ui-bg);
+    }
+
+    body { padding: 22px; }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      max-width: 1540px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(390px, 485px) minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .panel,
+    .preview-shell {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel {
+      padding: 22px;
+      position: sticky;
+      top: 22px;
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 20px;
+      box-shadow: 0 8px 18px rgba(244, 81, 30, .28);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.15;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .section {
+      padding: 16px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section:first-of-type {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: .01em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 10px;
+      min-width: 0;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 10px 11px;
+      color: var(--ink);
+      background: #fff;
+      outline: none;
+      transition: .18s ease;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: rgba(244, 81, 30, .7);
+      box-shadow: 0 0 0 3px rgba(244, 81, 30, .10);
+    }
+
+    input[type="color"] {
+      width: 100%;
+      height: 42px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #fff;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .range-line {
+      display: grid;
+      grid-template-columns: 1fr 54px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .range-value {
+      background: #f5f6f8;
+      border-radius: 9px;
+      text-align: center;
+      padding: 7px 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .rows {
+      display: grid;
+      gap: 9px;
+    }
+
+    .row-editor {
+      display: grid;
+      grid-template-columns: 34px minmax(112px, 1fr) 64px 64px 64px 36px;
+      gap: 7px;
+      align-items: end;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: #fafbfc;
+      transition: border-color .15s, background .15s, transform .15s;
+    }
+
+    .row-editor.drag-over {
+      border-color: var(--accent);
+      background: #fff7f3;
+      transform: translateY(2px);
+    }
+
+    .row-editor .field { margin: 0; }
+
+    .drag-handle,
+    .icon-btn {
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: #555c67;
+      display: grid;
+      place-items: center;
+      transition: .18s ease;
+      user-select: none;
+    }
+
+    .drag-handle {
+      cursor: grab;
+      font-size: 18px;
+      letter-spacing: -3px;
+      padding-right: 3px;
+    }
+
+    .drag-handle:active { cursor: grabbing; }
+
+    .icon-btn:hover,
+    .drag-handle:hover {
+      border-color: #cdd2da;
+      transform: translateY(-1px);
+    }
+
+    .icon-btn.danger:hover {
+      color: #b42318;
+      background: #fff4f2;
+      border-color: #ffd0ca;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 11px;
+      padding: 11px 14px;
+      font-weight: 700;
+      font-size: 12px;
+      transition: .18s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 9px 20px rgba(244, 81, 30, .24);
+    }
+
+    .btn-primary:hover { background: var(--accent-dark); }
+
+    .btn-light {
+      background: #f1f3f5;
+      color: var(--ink);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .actions .btn-primary { grid-column: 1 / -1; }
+
+    .preview-shell {
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .preview-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .preview-toolbar h2 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .preview-toolbar span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .preset-btn {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 9px;
+      text-align: left;
+      transition: .18s ease;
+    }
+
+    .preset-btn:hover {
+      border-color: #c9ced7;
+      transform: translateY(-1px);
+    }
+
+    .preset-btn.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(244, 81, 30, .10);
+    }
+
+    .preset-preview {
+      height: 44px;
+      border-radius: 8px;
+      margin-bottom: 7px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(20, 25, 35, .10);
+    }
+
+    .preset-preview::before,
+    .preset-preview::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      height: 7px;
+      border-radius: 1px;
+    }
+
+    .preset-preview::before {
+      top: 12px;
+      width: 68%;
+    }
+
+    .preset-preview::after {
+      top: 25px;
+      width: 45%;
+    }
+
+    .preset-orange {
+      background: #f4511e;
+    }
+
+    .preset-orange::before,
+    .preset-orange::after {
+      background: #ffffff;
+    }
+
+    .preset-black {
+      background: #ffffff;
+    }
+
+    .preset-black::before,
+    .preset-black::after {
+      background: #111111;
+    }
+
+    .preset-orange-bars {
+      background: #ffffff;
+    }
+
+    .preset-orange-bars::before,
+    .preset-orange-bars::after {
+      background: #f4511e;
+    }
+
+    .preset-name {
+      display: block;
+      color: var(--ink);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .canvas-wrap {
+      width: 100%;
+      overflow: auto;
+      border-radius: 14px;
+      background:
+        linear-gradient(45deg, #eceff3 25%, transparent 25%),
+        linear-gradient(-45deg, #eceff3 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #eceff3 75%),
+        linear-gradient(-45deg, transparent 75%, #eceff3 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+      border: 1px solid var(--line);
+      padding: 20px;
+      display: flex;
+      justify-content: flex-start;
+      align-items: flex-start;
+      min-height: 560px;
+    }
+
+    .chart-resize-box {
+      position: relative;
+      flex: 0 0 auto;
+      min-width: 400px;
+      min-height: 300px;
+      outline: 1px solid rgba(244, 81, 30, .45);
+      outline-offset: 5px;
+    }
+
+    .chart-size-label {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      z-index: 5;
+      padding: 5px 7px;
+      border-radius: 7px;
+      color: #fff;
+      background: rgba(15, 18, 24, .72);
+      font-size: 10px;
+      font-weight: 700;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s ease;
+    }
+
+    .chart-resize-box:hover .chart-size-label,
+    .chart-resize-box.resizing .chart-size-label {
+      opacity: 1;
+    }
+
+    .canvas-resize-handle {
+      position: absolute;
+      z-index: 12;
+      border: 2px solid #fff;
+      background: var(--accent);
+      box-shadow: 0 2px 7px rgba(20, 25, 35, .28);
+      padding: 0;
+    }
+
+    .canvas-resize-handle.handle-e {
+      width: 10px;
+      height: 42px;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-radius: 6px;
+      cursor: ew-resize;
+    }
+
+    .canvas-resize-handle.handle-s {
+      width: 42px;
+      height: 10px;
+      left: 50%;
+      bottom: -10px;
+      transform: translateX(-50%);
+      border-radius: 6px;
+      cursor: ns-resize;
+    }
+
+    .canvas-resize-handle.handle-se {
+      width: 18px;
+      height: 18px;
+      right: -13px;
+      bottom: -13px;
+      border-radius: 5px;
+      cursor: nwse-resize;
+    }
+
+    #ganttSvg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      box-shadow: 0 14px 38px rgba(20, 24, 34, .18);
+      border-radius: 2px;
+      touch-action: none;
+    }
+
+    #ganttSvg .bar-body { cursor: grab; }
+    #ganttSvg .bar-body:active { cursor: grabbing; }
+    #ganttSvg .resize-handle { cursor: ew-resize; }
+    #ganttSvg .row-group.is-dragging { opacity: .88; }
+    #ganttSvg .row-drop-guide { pointer-events: none; }
+
+    .hint {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .hint strong { color: var(--ink); }
+
+    .file-input { display: none; }
+
+    .small {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .toggle-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex: 0 0 auto;
+    }
+
+    .switch input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #d7dbe2;
+      border-radius: 99px;
+      transition: .2s;
+    }
+
+    .slider::after {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      top: 3px;
+      left: 3px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,.18);
+      transition: .2s;
+    }
+
+    .switch input:checked + .slider { background: var(--accent); }
+    .switch input:checked + .slider::after { transform: translateX(18px); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 9px;
+      background: #fff4ef;
+      color: #b7350e;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1120px) {
+      .app { grid-template-columns: 1fr; }
+      .panel {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 650px) {
+      body { padding: 10px; }
+
+      .panel,
+      .preview-shell { border-radius: 14px; }
+
+      .row-editor {
+        grid-template-columns: 34px 1fr 1fr 1fr 36px;
+      }
+
+      .row-editor .name-field {
+        grid-column: 2 / -1;
+      }
+
+      .grid-2 { grid-template-columns: 1fr; }
+      .preset-grid { grid-template-columns: 1fr; }
+
+      .canvas-wrap {
+        padding: 10px;
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <aside class="panel">
+      <div class="brand">
+        <div class="brand-mark">G</div>
+        <div>
+          <h1>Генератор Ганта</h1>
+          <p>Drag & Drop, ресайз і прив’язка до днів</p>
+        </div>
+      </div>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>Текст і календар</h2>
+          <span class="badge">Крок: 1 день</span>
+        </div>
+
+        <div class="field">
+          <label for="titleInput">Заголовок</label>
+          <input id="titleInput" type="text" value="Графік виконання проєкту" />
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="totalDays">Кількість днів</label>
+            <input id="totalDays" type="number" value="50" min="1" max="1000" step="1" />
+          </div>
+          <div class="field">
+            <label for="axisStep">Крок підписів шкали</label>
+            <input id="axisStep" type="number" value="10" min="1" step="1" />
+          </div>
+          <div class="field">
+            <label for="barHeight">Висота смуги</label>
+            <input id="barHeight" type="number" value="36" min="8" max="90" step="1" />
+          </div>
+          <div class="field">
+            <label for="minDuration">Мін. тривалість, днів</label>
+            <input id="minDuration" type="number" value="1" min="1" max="100" step="1" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>Етапи</h2>
+          <button id="addRowBtn" class="btn btn-light" type="button">＋ Додати</button>
+        </div>
+
+        <div id="rows" class="rows"></div>
+
+        <p class="hint">
+          <strong>Порядок:</strong> перетягуйте етап за ручку ⋮⋮.
+          Значення «Початок», «Кінець» і «Днів» пов’язані між собою.
+        </p>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>Стиль</h2>
+        </div>
+
+        <div class="preset-grid" aria-label="Кольорові пресети">
+          <button class="preset-btn active" type="button" data-preset="orange">
+            <span class="preset-preview preset-orange"></span>
+            <span class="preset-name">Помаранчевий + білий</span>
+          </button>
+
+          <button class="preset-btn" type="button" data-preset="mono">
+            <span class="preset-preview preset-black"></span>
+            <span class="preset-name">Білий + чорний</span>
+          </button>
+
+          <button class="preset-btn" type="button" data-preset="orangeBars">
+            <span class="preset-preview preset-orange-bars"></span>
+            <span class="preset-name">Білий + помаранчевий</span>
+          </button>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="bgColor">Фон</label>
+            <input id="bgColor" type="color" value="#f4511e" />
+          </div>
+          <div class="field">
+            <label for="barColor">Смуги</label>
+            <input id="barColor" type="color" value="#ffffff" />
+          </div>
+          <div class="field">
+            <label for="textColor">Текст</label>
+            <input id="textColor" type="color" value="#ffffff" />
+          </div>
+          <div class="field">
+            <label for="gridColor">Сітка</label>
+            <input id="gridColor" type="color" value="#ffb099" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="gridOpacity">Прозорість сітки</label>
+          <div class="range-line">
+            <input id="gridOpacity" type="range" value="80" min="0" max="100" />
+            <div id="gridOpacityValue" class="range-value">80%</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="titleSize">Розмір заголовка</label>
+            <input id="titleSize" type="number" value="33" min="14" max="80" />
+          </div>
+          <div class="field">
+            <label for="labelSize">Розмір підписів</label>
+            <input id="labelSize" type="number" value="17" min="8" max="44" />
+          </div>
+          <div class="field">
+            <label for="axisSize">Розмір чисел</label>
+            <input id="axisSize" type="number" value="17" min="8" max="44" />
+          </div>
+          <div class="field">
+            <label for="fontWeight">Насиченість заголовка</label>
+            <select id="fontWeight">
+              <option value="600">SemiBold 600</option>
+              <option value="700" selected>Bold 700</option>
+              <option value="800">ExtraBold 800</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="toggle-line">
+          <div>
+            <label style="color:var(--ink);font-size:12px;">Курсив для підписів</label>
+            <div class="small">Як у вихідному макеті</div>
+          </div>
+          <label class="switch">
+            <input id="italicLabels" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>Розмір полотна</h2>
+        </div>
+
+        <p class="hint" style="margin-top:0;">
+          Розмір можна вводити вручну або змінювати мишкою за правий, нижній чи кутовий маркер на самому графіку.
+        </p>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="canvasWidth">Ширина, px</label>
+            <input id="canvasWidth" type="number" value="662" min="400" max="3000" step="1" />
+          </div>
+          <div class="field">
+            <label for="canvasHeight">Висота, px</label>
+            <input id="canvasHeight" type="number" value="541" min="300" max="3000" step="1" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>Експорт</h2>
+        </div>
+
+        <div class="actions">
+          <button id="downloadPngBtn" class="btn btn-primary" type="button">Завантажити PNG</button>
+          <button id="downloadSvgBtn" class="btn btn-ghost" type="button">SVG</button>
+          <button id="saveJsonBtn" class="btn btn-ghost" type="button">JSON</button>
+          <label class="btn btn-light" for="loadJsonInput">Імпорт JSON</label>
+          <input id="loadJsonInput" class="file-input" type="file" accept=".json,application/json" />
+        </div>
+      </section>
+    </aside>
+
+    <section class="preview-shell">
+      <div class="preview-toolbar">
+        <div>
+          <h2>Попередній перегляд</h2>
+          <span>Смуги редагуються мишкою; загальний розмір — помаранчевими маркерами праворуч і знизу</span>
+        </div>
+        <button id="resetBtn" class="btn btn-light" type="button">Скинути</button>
+      </div>
+
+      <div class="canvas-wrap">
+        <div id="chartResizeBox" class="chart-resize-box">
+          <svg id="ganttSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Діаграма Ганта"></svg>
+          <div id="chartSizeLabel" class="chart-size-label">662 × 541 px</div>
+          <button class="canvas-resize-handle handle-e" type="button" data-resize-dir="e" aria-label="Змінити ширину"></button>
+          <button class="canvas-resize-handle handle-s" type="button" data-resize-dir="s" aria-label="Змінити висоту"></button>
+          <button class="canvas-resize-handle handle-se" type="button" data-resize-dir="se" aria-label="Змінити ширину і висоту"></button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const DEFAULT_STATE = {
+      title: "Графік виконання проєкту",
+      totalDays: 50,
+      axisStep: 10,
+      minDuration: 1,
+      canvasWidth: 662,
+      canvasHeight: 541,
+      barHeight: 36,
+      bgColor: "#f4511e",
+      barColor: "#ffffff",
+      textColor: "#ffffff",
+      gridColor: "#ffb099",
+      gridOpacity: 80,
+      titleSize: 33,
+      labelSize: 17,
+      axisSize: 17,
+      fontWeight: 700,
+      italicLabels: true,
+      rows: [
+        { label: "Етапи 1–2", start: 0, end: 15 },
+        { label: "Етапи 3–4", start: 0, end: 25 },
+        { label: "Етап 5", start: 0, end: 15 },
+        { label: "Етапи 6–7", start: 25, end: 40 },
+        { label: "Етап 8", start: 40, end: 45 }
+      ]
+    };
+
+    const COLOR_PRESETS = {
+      orange: {
+        bgColor: "#f4511e",
+        barColor: "#ffffff",
+        textColor: "#ffffff",
+        gridColor: "#ffb099",
+        gridOpacity: 80
+      },
+      mono: {
+        bgColor: "#ffffff",
+        barColor: "#111111",
+        textColor: "#111111",
+        gridColor: "#c9cdd3",
+        gridOpacity: 70
+      },
+      orangeBars: {
+        bgColor: "#ffffff",
+        barColor: "#f4511e",
+        textColor: "#111111",
+        gridColor: "#d4d7dc",
+        gridOpacity: 75
+      }
+    };
+
+    let state = structuredClone(DEFAULT_STATE);
+    let tableDragIndex = null;
+    let chartDrag = null;
+    let canvasResize = null;
+
+    const $ = (id) => document.getElementById(id);
+    const svg = $("ganttSvg");
+    const rowsEl = $("rows");
+    const chartResizeBox = $("chartResizeBox");
+    const chartSizeLabel = $("chartSizeLabel");
+
+    const controlMap = {
+      titleInput: "title",
+      totalDays: "totalDays",
+      axisStep: "axisStep",
+      minDuration: "minDuration",
+      canvasWidth: "canvasWidth",
+      canvasHeight: "canvasHeight",
+      barHeight: "barHeight",
+      bgColor: "bgColor",
+      barColor: "barColor",
+      textColor: "textColor",
+      gridColor: "gridColor",
+      gridOpacity: "gridOpacity",
+      titleSize: "titleSize",
+      labelSize: "labelSize",
+      axisSize: "axisSize",
+      fontWeight: "fontWeight",
+      italicLabels: "italicLabels"
+    };
+
+    const numericKeys = new Set([
+      "totalDays", "axisStep", "minDuration", "canvasWidth", "canvasHeight",
+      "barHeight", "gridOpacity", "titleSize", "labelSize", "axisSize", "fontWeight"
+    ]);
+
+    function esc(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function moveArrayItem(array, from, to) {
+      if (from === to || from < 0 || to < 0 || from >= array.length || to >= array.length) return;
+      const [item] = array.splice(from, 1);
+      array.splice(to, 0, item);
+    }
+
+    function normalizeRow(row) {
+      const max = state.totalDays;
+      const minDuration = Math.min(state.minDuration, max);
+
+      let start = Math.round(Number(row.start));
+      let end = Math.round(Number(row.end));
+
+      if (!Number.isFinite(start)) start = 0;
+      if (!Number.isFinite(end)) end = start + minDuration;
+
+      start = clamp(start, 0, max);
+      end = clamp(end, 0, max);
+
+      if (end < start) [start, end] = [end, start];
+      if (end - start < minDuration) {
+        end = Math.min(max, start + minDuration);
+        if (end - start < minDuration) start = Math.max(0, end - minDuration);
+      }
+
+      return {
+        label: String(row.label ?? ""),
+        start,
+        end
+      };
+    }
+
+    function normalizeState() {
+      state.totalDays = clamp(Math.round(Number(state.totalDays) || 50), 1, 1000);
+      state.axisStep = clamp(Math.round(Number(state.axisStep) || 10), 1, state.totalDays);
+      state.minDuration = clamp(Math.round(Number(state.minDuration) || 1), 1, state.totalDays);
+      state.canvasWidth = clamp(Math.round(Number(state.canvasWidth) || 662), 400, 3000);
+      state.canvasHeight = clamp(Math.round(Number(state.canvasHeight) || 541), 300, 3000);
+      state.barHeight = clamp(Math.round(Number(state.barHeight) || 36), 8, 90);
+      state.gridOpacity = clamp(Number(state.gridOpacity) || 0, 0, 100);
+      state.titleSize = clamp(Number(state.titleSize) || 33, 14, 80);
+      state.labelSize = clamp(Number(state.labelSize) || 17, 8, 44);
+      state.axisSize = clamp(Number(state.axisSize) || 17, 8, 44);
+      state.fontWeight = Number(state.fontWeight) || 700;
+      state.italicLabels = Boolean(state.italicLabels);
+      state.rows = (Array.isArray(state.rows) ? state.rows : []).map(normalizeRow);
+    }
+
+    function getLayout() {
+      const W = state.canvasWidth;
+      const H = state.canvasHeight;
+      const left = Math.round(W * 0.17);
+      const right = Math.round(W * 0.055);
+      const top = Math.max(90, Math.round(H * 0.185));
+      const bottom = Math.max(52, Math.round(H * 0.10));
+      const plotW = Math.max(60, W - left - right);
+      const plotH = Math.max(80, H - top - bottom);
+      const count = Math.max(1, state.rows.length);
+      const rowGap = plotH / count;
+      const barH = Math.min(state.barHeight, rowGap * 0.72);
+
+      return { W, H, left, right, top, bottom, plotW, plotH, count, rowGap, barH };
+    }
+
+    function xFor(day, layout = getLayout()) {
+      return layout.left + (day / state.totalDays) * layout.plotW;
+    }
+
+    function dayForX(x, layout = getLayout()) {
+      return Math.round(((x - layout.left) / layout.plotW) * state.totalDays);
+    }
+
+    function svgPoint(clientX, clientY) {
+      const point = svg.createSVGPoint();
+      point.x = clientX;
+      point.y = clientY;
+      const matrix = svg.getScreenCTM();
+      return matrix ? point.matrixTransform(matrix.inverse()) : { x: 0, y: 0 };
+    }
+
+    function buildRowsEditor() {
+      rowsEl.innerHTML = "";
+
+      state.rows.forEach((row, index) => {
+        const duration = row.end - row.start;
+        const item = document.createElement("div");
+        item.className = "row-editor";
+        item.dataset.index = index;
+
+        item.innerHTML = `
+          <div class="drag-handle" draggable="true" data-index="${index}" title="Перетягніть для зміни порядку">⋮⋮</div>
+
+          <div class="field name-field">
+            <label>Назва</label>
+            <input type="text" value="${esc(row.label)}" data-index="${index}" data-key="label" />
+          </div>
+
+          <div class="field">
+            <label>Початок</label>
+            <input type="number" value="${row.start}" min="0" max="${state.totalDays}" step="1"
+              data-index="${index}" data-key="start" />
+          </div>
+
+          <div class="field">
+            <label>Кінець</label>
+            <input type="number" value="${row.end}" min="0" max="${state.totalDays}" step="1"
+              data-index="${index}" data-key="end" />
+          </div>
+
+          <div class="field">
+            <label>Днів</label>
+            <input type="number" value="${duration}" min="${state.minDuration}" max="${state.totalDays}" step="1"
+              data-index="${index}" data-key="duration" />
+          </div>
+
+          <button class="icon-btn danger" type="button" data-action="delete" data-index="${index}" title="Видалити">×</button>
+        `;
+
+        rowsEl.appendChild(item);
+      });
+
+      rowsEl.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", (event) => {
+          const index = Number(event.target.dataset.index);
+          const key = event.target.dataset.key;
+          const row = state.rows[index];
+          if (!row) return;
+
+          if (key === "label") {
+            row.label = event.target.value;
+          } else if (key === "start") {
+            const duration = row.end - row.start;
+            row.start = Math.round(Number(event.target.value));
+            row.end = row.start + duration;
+          } else if (key === "end") {
+            row.end = Math.round(Number(event.target.value));
+          } else if (key === "duration") {
+            const duration = Math.max(state.minDuration, Math.round(Number(event.target.value) || state.minDuration));
+            row.end = row.start + duration;
+          }
+
+          state.rows[index] = normalizeRow(row);
+          render();
+          refreshRowNumbers(index);
+        });
+      });
+
+      rowsEl.querySelectorAll("[data-action='delete']").forEach(button => {
+        button.addEventListener("click", () => {
+          state.rows.splice(Number(button.dataset.index), 1);
+          buildRowsEditor();
+          render();
+        });
+      });
+
+      rowsEl.querySelectorAll(".drag-handle").forEach(handle => {
+        handle.addEventListener("dragstart", (event) => {
+          tableDragIndex = Number(handle.dataset.index);
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", String(tableDragIndex));
+        });
+
+        handle.addEventListener("dragend", () => {
+          tableDragIndex = null;
+          rowsEl.querySelectorAll(".row-editor").forEach(el => el.classList.remove("drag-over"));
+        });
+      });
+
+      rowsEl.querySelectorAll(".row-editor").forEach(rowEl => {
+        rowEl.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          rowEl.classList.add("drag-over");
+          event.dataTransfer.dropEffect = "move";
+        });
+
+        rowEl.addEventListener("dragleave", () => rowEl.classList.remove("drag-over"));
+
+        rowEl.addEventListener("drop", (event) => {
+          event.preventDefault();
+          rowEl.classList.remove("drag-over");
+
+          const from = tableDragIndex ?? Number(event.dataTransfer.getData("text/plain"));
+          const to = Number(rowEl.dataset.index);
+          if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+
+          moveArrayItem(state.rows, from, to);
+          buildRowsEditor();
+          render();
+        });
+      });
+    }
+
+    function refreshRowNumbers(index) {
+      const row = state.rows[index];
+      const editor = rowsEl.querySelector(`.row-editor[data-index="${index}"]`);
+      if (!row || !editor) return;
+
+      const startInput = editor.querySelector('[data-key="start"]');
+      const endInput = editor.querySelector('[data-key="end"]');
+      const durationInput = editor.querySelector('[data-key="duration"]');
+
+      if (document.activeElement !== startInput) startInput.value = row.start;
+      if (document.activeElement !== endInput) endInput.value = row.end;
+      if (document.activeElement !== durationInput) durationInput.value = row.end - row.start;
+    }
+
+    function syncControlsFromState() {
+      Object.entries(controlMap).forEach(([id, key]) => {
+        const el = $(id);
+        if (!el) return;
+
+        if (el.type === "checkbox") el.checked = Boolean(state[key]);
+        else el.value = state[key];
+      });
+
+      $("gridOpacityValue").textContent = `${state.gridOpacity}%`;
+      updatePresetButtons();
+    }
+
+    function updatePresetButtons() {
+      document.querySelectorAll(".preset-btn").forEach(button => {
+        const preset = COLOR_PRESETS[button.dataset.preset];
+        const matches = preset
+          && state.bgColor.toLowerCase() === preset.bgColor.toLowerCase()
+          && state.barColor.toLowerCase() === preset.barColor.toLowerCase()
+          && state.textColor.toLowerCase() === preset.textColor.toLowerCase();
+
+        button.classList.toggle("active", Boolean(matches));
+      });
+    }
+
+    function applyColorPreset(name) {
+      const preset = COLOR_PRESETS[name];
+      if (!preset) return;
+
+      Object.assign(state, preset);
+      syncControlsFromState();
+      render();
+    }
+
+    function render() {
+      normalizeState();
+
+      const L = getLayout();
+      const { W, H, left, top, bottom, plotW, rowGap, barH } = L;
+
+      chartResizeBox.style.width = `${W}px`;
+      chartResizeBox.style.height = `${H}px`;
+      chartSizeLabel.textContent = `${W} × ${H} px`;
+
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      svg.setAttribute("width", W);
+      svg.setAttribute("height", H);
+
+      let markup = `
+        <defs>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&amp;display=swap');
+            text { font-family: 'Montserrat', Arial, sans-serif; }
+          </style>
+          <filter id="dragShadow" x="-30%" y="-60%" width="160%" height="220%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" flood-opacity=".24"/>
+          </filter>
+        </defs>
+
+        <rect x="0" y="0" width="${W}" height="${H}" fill="${state.bgColor}" />
+
+        <text
+          x="${W / 2}"
+          y="${Math.round(H * 0.086)}"
+          fill="${state.textColor}"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          font-size="${state.titleSize}"
+          font-weight="${state.fontWeight}"
+        >${esc(state.title)}</text>
+      `;
+
+      const ticks = [];
+      for (let day = 0; day <= state.totalDays; day += state.axisStep) {
+        ticks.push(day);
+        if (ticks.length > 1001) break;
+      }
+      if (ticks.at(-1) !== state.totalDays) ticks.push(state.totalDays);
+
+      ticks.forEach(day => {
+        const x = xFor(day, L);
+        markup += `
+          <line
+            x1="${x}" y1="${top}"
+            x2="${x}" y2="${H - bottom}"
+            stroke="${state.gridColor}"
+            stroke-opacity="${state.gridOpacity / 100}"
+            stroke-width="${Math.max(1, W / 660)}"
+          />
+          <text
+            x="${x}"
+            y="${H - Math.round(bottom * .43)}"
+            fill="${state.textColor}"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-size="${state.axisSize}"
+            font-style="italic"
+            font-weight="500"
+          >${day}</text>
+        `;
+      });
+
+      state.rows.forEach((row, index) => {
+        const y = top + index * rowGap + (rowGap - barH) / 2;
+        const x1 = xFor(row.start, L);
+        const x2 = xFor(row.end, L);
+        const width = Math.max(1, x2 - x1);
+        const labelY = y + barH / 2;
+        const handleWidth = clamp(plotW / state.totalDays * .7, 7, 14);
+
+        markup += `
+          <g class="row-group" data-index="${index}">
+            <text
+              class="row-label"
+              x="${left - Math.max(12, W * .02)}"
+              y="${labelY}"
+              fill="${state.textColor}"
+              text-anchor="end"
+              dominant-baseline="middle"
+              font-size="${state.labelSize}"
+              font-style="${state.italicLabels ? "italic" : "normal"}"
+              font-weight="500"
+            >${esc(row.label)}</text>
+
+            <g class="bar-group" data-index="${index}">
+              <rect
+                class="bar-body"
+                data-index="${index}"
+                x="${x1}"
+                y="${y}"
+                width="${width}"
+                height="${barH}"
+                fill="${state.barColor}"
+                rx="0"
+              />
+
+              <rect
+                class="resize-handle resize-left"
+                data-index="${index}"
+                data-side="left"
+                x="${x1 - handleWidth / 2}"
+                y="${y}"
+                width="${handleWidth}"
+                height="${barH}"
+                fill="transparent"
+              />
+              <rect
+                x="${x1 + 2}"
+                y="${y + barH * .24}"
+                width="${Math.max(2, handleWidth * .22)}"
+                height="${barH * .52}"
+                fill="${state.bgColor}"
+                opacity=".68"
+                pointer-events="none"
+              />
+
+              <rect
+                class="resize-handle resize-right"
+                data-index="${index}"
+                data-side="right"
+                x="${x2 - handleWidth / 2}"
+                y="${y}"
+                width="${handleWidth}"
+                height="${barH}"
+                fill="transparent"
+              />
+              <rect
+                x="${x2 - Math.max(4, handleWidth * .22) - 2}"
+                y="${y + barH * .24}"
+                width="${Math.max(2, handleWidth * .22)}"
+                height="${barH * .52}"
+                fill="${state.bgColor}"
+                opacity=".68"
+                pointer-events="none"
+              />
+            </g>
+          </g>
+        `;
+      });
+
+      markup += `
+        <line class="row-drop-guide"
+          x1="${left}" x2="${left + plotW}"
+          y1="-100" y2="-100"
+          stroke="${state.textColor}"
+          stroke-width="2"
+          stroke-dasharray="7 6"
+          opacity=".8"
+        />
+      `;
+
+      svg.innerHTML = markup;
+      bindChartInteractions();
+      $("gridOpacityValue").textContent = `${state.gridOpacity}%`;
+      updatePresetButtons();
+    }
+
+    function bindChartInteractions() {
+      svg.querySelectorAll(".bar-body, .resize-handle").forEach(target => {
+        target.addEventListener("pointerdown", chartPointerDown);
+      });
+    }
+
+    function chartPointerDown(event) {
+      event.preventDefault();
+
+      const index = Number(event.currentTarget.dataset.index);
+      const row = state.rows[index];
+      if (!row) return;
+
+      const mode = event.currentTarget.classList.contains("resize-handle")
+        ? `resize-${event.currentTarget.dataset.side}`
+        : "move";
+
+      const point = svgPoint(event.clientX, event.clientY);
+      const L = getLayout();
+      const rowGroup = svg.querySelector(`.row-group[data-index="${index}"]`);
+      const barBody = rowGroup.querySelector(".bar-body");
+      const leftHandle = rowGroup.querySelector(".resize-left");
+      const rightHandle = rowGroup.querySelector(".resize-right");
+      const barGroup = rowGroup.querySelector(".bar-group");
+
+      chartDrag = {
+        pointerId: event.pointerId,
+        index,
+        mode,
+        originPoint: point,
+        originStart: row.start,
+        originEnd: row.end,
+        currentStart: row.start,
+        currentEnd: row.end,
+        currentTargetIndex: index,
+        layout: L,
+        rowGroup,
+        barGroup,
+        barBody,
+        leftHandle,
+        rightHandle
+      };
+
+      rowGroup.classList.add("is-dragging");
+      rowGroup.setAttribute("filter", "url(#dragShadow)");
+      svg.setPointerCapture(event.pointerId);
+
+      svg.addEventListener("pointermove", chartPointerMove);
+      svg.addEventListener("pointerup", chartPointerUp);
+      svg.addEventListener("pointercancel", chartPointerUp);
+    }
+
+    function chartPointerMove(event) {
+      if (!chartDrag || event.pointerId !== chartDrag.pointerId) return;
+      event.preventDefault();
+
+      const point = svgPoint(event.clientX, event.clientY);
+      const D = chartDrag;
+      const L = D.layout;
+      const deltaDays = Math.round(((point.x - D.originPoint.x) / L.plotW) * state.totalDays);
+      const minDuration = state.minDuration;
+
+      let start = D.originStart;
+      let end = D.originEnd;
+
+      if (D.mode === "move") {
+        const duration = D.originEnd - D.originStart;
+        start = clamp(D.originStart + deltaDays, 0, state.totalDays - duration);
+        end = start + duration;
+      }
+
+      if (D.mode === "resize-left") {
+        start = clamp(D.originStart + deltaDays, 0, D.originEnd - minDuration);
+      }
+
+      if (D.mode === "resize-right") {
+        end = clamp(D.originEnd + deltaDays, D.originStart + minDuration, state.totalDays);
+      }
+
+      D.currentStart = Math.round(start);
+      D.currentEnd = Math.round(end);
+
+      const x1 = xFor(D.currentStart, L);
+      const x2 = xFor(D.currentEnd, L);
+      const width = Math.max(1, x2 - x1);
+      const handleWidth = clamp(L.plotW / state.totalDays * .7, 7, 14);
+
+      D.barBody.setAttribute("x", x1);
+      D.barBody.setAttribute("width", width);
+      D.leftHandle.setAttribute("x", x1 - handleWidth / 2);
+      D.rightHandle.setAttribute("x", x2 - handleWidth / 2);
+
+      const decorative = D.barGroup.querySelectorAll("rect[pointer-events='none']");
+      if (decorative[0]) decorative[0].setAttribute("x", x1 + 2);
+      if (decorative[1]) decorative[1].setAttribute("x", x2 - Math.max(4, handleWidth * .22) - 2);
+
+      if (D.mode === "move" && state.rows.length > 1) {
+        const rawIndex = Math.floor((point.y - L.top) / L.rowGap);
+        D.currentTargetIndex = clamp(rawIndex, 0, state.rows.length - 1);
+
+        const originCenter = L.top + D.index * L.rowGap + L.rowGap / 2;
+        const targetCenter = L.top + D.currentTargetIndex * L.rowGap + L.rowGap / 2;
+        const visualDeltaY = clamp(point.y - D.originPoint.y, targetCenter - originCenter - L.rowGap / 2, targetCenter - originCenter + L.rowGap / 2);
+
+        D.rowGroup.setAttribute("transform", `translate(0 ${visualDeltaY})`);
+
+        const guide = svg.querySelector(".row-drop-guide");
+        const guideY = L.top + D.currentTargetIndex * L.rowGap;
+        guide.setAttribute("y1", guideY);
+        guide.setAttribute("y2", guideY);
+      }
+    }
+
+    function chartPointerUp(event) {
+      if (!chartDrag || event.pointerId !== chartDrag.pointerId) return;
+
+      const D = chartDrag;
+      state.rows[D.index].start = D.currentStart;
+      state.rows[D.index].end = D.currentEnd;
+      state.rows[D.index] = normalizeRow(state.rows[D.index]);
+
+      if (D.mode === "move" && D.currentTargetIndex !== D.index) {
+        moveArrayItem(state.rows, D.index, D.currentTargetIndex);
+      }
+
+      try {
+        if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+      } catch (_) {}
+
+      svg.removeEventListener("pointermove", chartPointerMove);
+      svg.removeEventListener("pointerup", chartPointerUp);
+      svg.removeEventListener("pointercancel", chartPointerUp);
+
+      chartDrag = null;
+      buildRowsEditor();
+      render();
+    }
+
+    function bindPresetControls() {
+      document.querySelectorAll(".preset-btn").forEach(button => {
+        button.addEventListener("click", () => applyColorPreset(button.dataset.preset));
+      });
+    }
+
+    function bindCanvasResize() {
+      document.querySelectorAll(".canvas-resize-handle").forEach(handle => {
+        handle.addEventListener("pointerdown", event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          canvasResize = {
+            pointerId: event.pointerId,
+            dir: handle.dataset.resizeDir,
+            originX: event.clientX,
+            originY: event.clientY,
+            originWidth: state.canvasWidth,
+            originHeight: state.canvasHeight,
+            handle
+          };
+
+          chartResizeBox.classList.add("resizing");
+          handle.setPointerCapture(event.pointerId);
+          handle.addEventListener("pointermove", canvasResizeMove);
+          handle.addEventListener("pointerup", canvasResizeEnd);
+          handle.addEventListener("pointercancel", canvasResizeEnd);
+        });
+      });
+    }
+
+    function canvasResizeMove(event) {
+      if (!canvasResize || event.pointerId !== canvasResize.pointerId) return;
+      event.preventDefault();
+
+      const deltaX = event.clientX - canvasResize.originX;
+      const deltaY = event.clientY - canvasResize.originY;
+
+      if (canvasResize.dir.includes("e")) {
+        state.canvasWidth = clamp(
+          Math.round(canvasResize.originWidth + deltaX),
+          400,
+          3000
+        );
+      }
+
+      if (canvasResize.dir.includes("s")) {
+        state.canvasHeight = clamp(
+          Math.round(canvasResize.originHeight + deltaY),
+          300,
+          3000
+        );
+      }
+
+      $("canvasWidth").value = state.canvasWidth;
+      $("canvasHeight").value = state.canvasHeight;
+      render();
+    }
+
+    function canvasResizeEnd(event) {
+      if (!canvasResize || event.pointerId !== canvasResize.pointerId) return;
+
+      const handle = canvasResize.handle;
+
+      try {
+        if (handle.hasPointerCapture(event.pointerId)) {
+          handle.releasePointerCapture(event.pointerId);
+        }
+      } catch (_) {}
+
+      handle.removeEventListener("pointermove", canvasResizeMove);
+      handle.removeEventListener("pointerup", canvasResizeEnd);
+      handle.removeEventListener("pointercancel", canvasResizeEnd);
+
+      chartResizeBox.classList.remove("resizing");
+      canvasResize = null;
+    }
+
+    function bindControls() {
+      Object.entries(controlMap).forEach(([id, key]) => {
+        const el = $(id);
+        const eventName = el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input";
+
+        el.addEventListener(eventName, () => {
+          if (el.type === "checkbox") state[key] = el.checked;
+          else if (numericKeys.has(key)) state[key] = Number(el.value);
+          else state[key] = el.value;
+
+          normalizeState();
+
+          if (key === "totalDays" || key === "minDuration") {
+            buildRowsEditor();
+          }
+
+          render();
+        });
+      });
+    }
+
+    function serializeSvg() {
+      const clone = svg.cloneNode(true);
+      clone.querySelectorAll(".resize-handle").forEach(el => el.remove());
+      clone.querySelectorAll(".row-drop-guide").forEach(el => el.remove());
+      clone.querySelectorAll("rect[pointer-events='none']").forEach(el => el.remove());
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("width", state.canvasWidth);
+      clone.setAttribute("height", state.canvasHeight);
+
+      return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function drawPngToCanvas(scale = 2) {
+      const L = getLayout();
+      const canvas = document.createElement("canvas");
+      canvas.width = L.W * scale;
+      canvas.height = L.H * scale;
+
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      ctx.fillStyle = state.bgColor;
+      ctx.fillRect(0, 0, L.W, L.H);
+
+      ctx.fillStyle = state.textColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `${state.fontWeight} ${state.titleSize}px Montserrat, Arial, sans-serif`;
+      ctx.fillText(state.title, L.W / 2, Math.round(L.H * .086));
+
+      const ticks = [];
+      for (let day = 0; day <= state.totalDays; day += state.axisStep) {
+        ticks.push(day);
+        if (ticks.length > 1001) break;
+      }
+      if (ticks.at(-1) !== state.totalDays) ticks.push(state.totalDays);
+
+      ctx.globalAlpha = state.gridOpacity / 100;
+      ctx.strokeStyle = state.gridColor;
+      ctx.lineWidth = Math.max(1, L.W / 660);
+
+      ticks.forEach(day => {
+        const x = xFor(day, L);
+        ctx.beginPath();
+        ctx.moveTo(x, L.top);
+        ctx.lineTo(x, L.H - L.bottom);
+        ctx.stroke();
+      });
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = state.textColor;
+      ctx.font = `italic 500 ${state.axisSize}px Montserrat, Arial, sans-serif`;
+
+      ticks.forEach(day => {
+        const x = xFor(day, L);
+        ctx.fillText(String(day), x, L.H - Math.round(L.bottom * .43));
+      });
+
+      state.rows.forEach((row, index) => {
+        const y = L.top + index * L.rowGap + (L.rowGap - L.barH) / 2;
+        const x1 = xFor(row.start, L);
+        const x2 = xFor(row.end, L);
+        const labelY = y + L.barH / 2;
+
+        ctx.textAlign = "right";
+        ctx.fillStyle = state.textColor;
+        ctx.font = `${state.italicLabels ? "italic " : ""}500 ${state.labelSize}px Montserrat, Arial, sans-serif`;
+        ctx.fillText(row.label, L.left - Math.max(12, L.W * .02), labelY);
+
+        ctx.fillStyle = state.barColor;
+        ctx.fillRect(x1, y, Math.max(1, x2 - x1), L.barH);
+      });
+
+      return canvas;
+    }
+
+    async function downloadPng() {
+      try {
+        await document.fonts.ready;
+        const canvas = drawPngToCanvas(2);
+        canvas.toBlob(blob => {
+          if (blob) downloadBlob(blob, "diagram-ganta.png");
+        }, "image/png", 1);
+      } catch (error) {
+        console.error(error);
+        alert("Не вдалося створити PNG.");
+      }
+    }
+
+    $("addRowBtn").addEventListener("click", () => {
+      const lastEnd = state.rows.length ? state.rows.at(-1).end : 0;
+      const start = clamp(lastEnd, 0, state.totalDays - state.minDuration);
+
+      state.rows.push({
+        label: `Етап ${state.rows.length + 1}`,
+        start,
+        end: Math.min(state.totalDays, start + Math.max(state.axisStep, state.minDuration))
+      });
+
+      buildRowsEditor();
+      render();
+    });
+
+    $("resetBtn").addEventListener("click", () => {
+      state = structuredClone(DEFAULT_STATE);
+      syncControlsFromState();
+      buildRowsEditor();
+      render();
+    });
+
+    $("downloadSvgBtn").addEventListener("click", () => {
+      downloadBlob(
+        new Blob([serializeSvg()], { type: "image/svg+xml;charset=utf-8" }),
+        "diagram-ganta.svg"
+      );
+    });
+
+    $("downloadPngBtn").addEventListener("click", downloadPng);
+
+    $("saveJsonBtn").addEventListener("click", () => {
+      downloadBlob(
+        new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }),
+        "diagram-ganta.json"
+      );
+    });
+
+    $("loadJsonInput").addEventListener("change", async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const parsed = JSON.parse(await file.text());
+        state = {
+          ...structuredClone(DEFAULT_STATE),
+          ...parsed,
+          rows: Array.isArray(parsed.rows) ? parsed.rows : structuredClone(DEFAULT_STATE.rows)
+        };
+
+        normalizeState();
+        syncControlsFromState();
+        buildRowsEditor();
+        render();
+      } catch (error) {
+        alert("Цей JSON-файл має неправильний формат.");
+      } finally {
+        event.target.value = "";
+      }
+    });
+
+    bindControls();
+    bindPresetControls();
+    bindCanvasResize();
+    syncControlsFromState();
+    buildRowsEditor();
+    render();
+  </script>
+</body>
+</html>
